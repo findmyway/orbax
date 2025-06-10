@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- #emergency-checkpoint Stop including barrier processes in barrier names. This
+information should be redundant, since the barrier ID always corresponds 1:1
+with the provided processes ('local_all_steps':
+processes_excepting_primary_slice, 'find_complete_slice`: all_processes).
+
+## [0.11.14] - 2025-06-09
+
+### Added
+
+- #v1 Add metadata async write / read methods.
+- #v1 Add `start_async_mkdir` that begins async directory creation and returns
+a `PathAwaitingCreation`.
+- #v1 Add ArrayLeafHandler.
+- #v1 Add CompatibleTypeHandler to allow v1 ArrayLeafHandlers working with V0
+  TypeHandlerRegistry.
+- #v1 Add tests to cover v0 CheckpointManager->v1 Checkpointer migration use
+ case.
+- #v1 Add NumpyLeafHandler.
+- #v1 Add NumpyLeafHandler into CompatibleTypeHandler.
+- #v1 Add ScalarLeafHandler and it into CompatibleTypeHandler.
+
+### Fixed
+
+- Fix JAX random key restoration with StandardRestore.
+
+### Changed
+
+- #v1 Allow `load_pytree` to specify the checkpointable_name, with `pytree` as
+ default value.
+- #v1 Use an implementation of `load` independent of `v0.Checkpointer`.
+- #v1 Use an implementation of `save` independent of `v0.Checkpointer`.
+- #v1 Distinguish between `force` and `overwrite` save params.
+- Enable `pinned_host_transfer` for GPU backend only.
+- #perf Add/update logs with time logs for save paths.
+- Simplify str of NameFormats.
 ## [0.11.13] - 2025-04-30
 
 ### Changed
