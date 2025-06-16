@@ -71,7 +71,7 @@ def slice_devices(
 def slice_count(global_mesh: jax.sharding.Mesh) -> int:
     """Number of slices in the global mesh."""
     devices = global_mesh.devices
-    if hasattr(devices[0], "slice_index"):
+    if hasattr(jax.devices()[0], "slice_index"):
         logging.info(
             "calculating slice indices %s",
             np.vectorize(lambda x: x.slice_index)(devices),
