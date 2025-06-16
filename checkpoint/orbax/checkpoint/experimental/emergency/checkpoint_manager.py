@@ -1440,6 +1440,12 @@ class CheckpointManager(
         self._global_mesh = global_mesh
         self._abstract_state = abstract_state
         self._slice_count = multislice.slice_count(global_mesh)
+        logging.info(
+            "OrbaxEmergencyCheckpoinManager using global mesh %s with %d slices.",
+            self._global_mesh,
+            self._slice_count,
+        )
+
         checkpoint_manager._create_root_directory(
             persistent_directory,
             multiprocessing_options=checkpoint_manager.MultiprocessingOptions(),
