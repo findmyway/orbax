@@ -633,7 +633,7 @@ def _get_single_slice_sharding(
     )
     n = multislice.slice_count(mesh)
     single_slice_mesh_shape = [
-        i // n if i == replica_axis_index else d
+        d // n if i == replica_axis_index else d
         for i, d in enumerate(mesh.devices.shape)
     ]
     slice_mesh = jax.sharding.Mesh(
