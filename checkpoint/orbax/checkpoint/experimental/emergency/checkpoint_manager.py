@@ -1441,8 +1441,9 @@ class CheckpointManager(
         self._abstract_state = abstract_state
         self._slice_count = multislice.slice_count(global_mesh)
         logging.info(
-            "OrbaxEmergencyCheckpoinManager using global mesh %s with %d slices.",
+            "OrbaxEmergencyCheckpoinManager using global mesh %s with devices %s of %d slices.",
             self._global_mesh,
+            self._global_mesh.devices,
             self._slice_count,
         )
 
