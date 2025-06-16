@@ -631,8 +631,10 @@ def _get_single_slice_sharding(
         replica_id=replica_id,
         replica_axis_index=replica_axis_index,
     )
+    n = multislice.slice_count(mesh)
     single_slice_mesh_shape = [
-        1 if i == replica_axis_index else d for i, d in enumerate(mesh.devices.shape)
+        i // n if i == replica_axis_index else d
+        for i, d in enumerate(mesh.devices.shape)
     ]
     slice_mesh = jax.sharding.Mesh(
         slice_devices.reshape(single_slice_mesh_shape), mesh.axis_names
@@ -1441,9 +1443,8 @@ class CheckpointManager(
         self._abstract_state = abstract_state
         self._slice_count = multislice.slice_count(global_mesh)
         logging.info(
-            "OrbaxEmergencyCheckpoinManager using global mesh %s with devices %s of %d slices.",
+            "OrbaxEmergencyCheckpoinManager using global mesh %s of %d slices.",
             self._global_mesh,
-            self._global_mesh.devices,
             self._slice_count,
         )
 
