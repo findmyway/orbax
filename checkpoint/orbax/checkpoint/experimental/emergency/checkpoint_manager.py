@@ -462,6 +462,14 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
     self._replica_axis_index = options.replica_axis_index
 
     devices = np.asarray(self._global_mesh.devices)
+    logging.info("Global devices: %s", devices)
+
+    get_pids_from_devices = np.vectorize(
+        lambda d: multihost.runtime_to_distributed_process_id(d.process_index)
+    )
+    devices_pids = get_pids_from_devices(devices)
+    logging.info("Global device pids: %s", devices_pids)
+
     # Select all devices except those belonging to the primary replica.
     if not options.local.debug_use_full_global_mesh:
       devices = _all_devices_excepting_slice(
@@ -470,7 +478,15 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
           replica_axis_index=self._replica_axis_index,
       )
 
+    logging.info("Devices except primary replica: %s", devices)
+
+    devices_pids = get_pids_from_devices(devices)
+    logging.info("Devices except primary replica pids: %s", devices_pids)
+
     self._active_processes = multihost.unique_processes_from_devices(devices)
+
+    logging.info("Active processes: %s", self._active_processes)
+
     multiprocessing_options = checkpoint_manager.MultiprocessingOptions(
         primary_host=None,
         active_processes=self._active_processes,
@@ -777,6 +793,8 @@ class _MultisliceCheckpointManager(
         replica_axis_index=self._replica_axis_index,
         replica_id=primary_replica_id,
     )
+
+    logging.info("Persistent primary host: %s, local primary host: %s, is in primary slice %s", self._persistent_primary_host, self._local_primary_host, self._in_primary_slice)
 
     if self._in_primary_slice:
       persistent_multiprocessing_options = (
