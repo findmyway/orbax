@@ -74,7 +74,7 @@ RootMetadata = checkpoint_manager.RootMetadata
 StepMetadata = checkpoint_manager.StepMetadata
 
 _PRIMARY_REPLICA_ID = 0
-_SECONDARY_REPLICA_ID = 1
+_SECONDARY_REPLICA_ID = -1
 _STATE_ITEM_NAME = 'state'
 _PROCESS_METADATA_NAME = 'process_metadata'
 
