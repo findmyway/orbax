@@ -462,13 +462,13 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
     self._replica_axis_index = options.replica_axis_index
 
     devices = np.asarray(self._global_mesh.devices)
-    logging.info("Global devices: %s", devices)
+    logging.info("Global devices: %s", devices.flatten())
 
     get_pids_from_devices = np.vectorize(
         lambda d: multihost.runtime_to_distributed_process_id(d.process_index)
     )
     devices_pids = get_pids_from_devices(devices)
-    logging.info("Global device pids: %s", devices_pids)
+    logging.info("Global device pids: %s", devices_pids.flatten())
 
     # Select all devices except those belonging to the primary replica.
     if not options.local.debug_use_full_global_mesh:
@@ -478,10 +478,10 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
           replica_axis_index=self._replica_axis_index,
       )
 
-    logging.info("Devices except primary replica: %s", devices)
+    logging.info("Devices except primary replica: %s", devices.flatten())
 
     devices_pids = get_pids_from_devices(devices)
-    logging.info("Devices except primary replica pids: %s", devices_pids)
+    logging.info("Devices except primary replica pids: %s", devices_pids.flatten())
 
     self._active_processes = multihost.unique_processes_from_devices(devices)
 
