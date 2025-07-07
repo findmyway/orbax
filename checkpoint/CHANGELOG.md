@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.18] - 2025-07-01
+
+### Changed
+
+- For JAX>=0.6.2, JAX layout.Layout renamed to layout.Format
+
+## [0.11.17] - 2025-06-30
+
+### Added
+
+- #v1 Add `PreservationPolicy` support in Checkpointer.
+- Fix rmtree behavior for GCS HNS enabled buckets.
+- #v1 Update AbstractScalar as a simple `Type`
+
+### Changed
+
+- #v1 remove unnecessary warnings when leaf handlers are added into existing
+type handler registry
+
+## [0.11.16] - 2025-06-18
+
+### Changed
+
+- make sure the GitHub build.yml allow to install newer jax-version
+- #v1 Modify saving code to eliminate cross-thread event loop sharing.
+
 ## [0.11.15] - 2025-06-13
 
 ### Changed
