@@ -362,7 +362,7 @@ class CheckpointManagerOptions:
   save_on_steps: Optional[Container[int]] = None
   single_host_load_and_broadcast: bool = False
   todelete_subdir: Optional[str] = None
-  enable_hns_rmtree: bool = False
+  enable_hns_rmtree: bool = True
   enable_background_delete: bool = False
   read_only: bool = False
   enable_async_checkpointing: bool = True
