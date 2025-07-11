@@ -17,6 +17,8 @@
 import functools
 import os
 import queue
+import concurrent
+import concurrent.futures
 import threading
 import time
 from typing import Optional, Protocol, Sequence
@@ -113,24 +115,25 @@ class StandardCheckpointDeleter:
             )
         )
     )
-
-    while folders:
-      parents = set(os.path.dirname(x.rstrip('/')) + '/' for x in folders)
-      leaves = folders - parents
-      requests = [
-          storage_control_v2.DeleteFolderRequest(name=f) for f in leaves
-      ]
-      for req in requests:
-        client.delete_folder(request=req)
-      folders = folders - leaves
-      logging.vlog(
-          1,
-          'Deleted %s folders, %s remaining. [%s][%s]',
-          len(leaves),
-          len(folders),
-          bucket,
-          prefix,
-      )
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+      while folders:
+        parents = set(os.path.dirname(x.rstrip('/')) + '/' for x in folders)
+        leaves = folders - parents
+        res = list(
+          pool.map(
+            client.delete_folder,
+            [storage_control_v2.DeleteFolderRequest(name=f) for f in leaves],
+          )
+        )
+        folders = folders - leaves
+        logging.vlog(
+            1,
+            'Deleted %s folders, %s remaining. [%s][%s]',
+            len(res),
+            len(folders),
+            bucket,
+            prefix,
+        )
 
   def _rmtree(self, path: epath.Path):
     """Recursively deletes a path.
