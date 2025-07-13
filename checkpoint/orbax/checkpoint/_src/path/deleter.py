@@ -191,19 +191,42 @@ class StandardCheckpointDeleter:
         )
         return
 
-      if self._todelete_subdir is None or step_lib.is_gcs_path(self._directory):
+      if self._todelete_subdir is None:
         self._rmtree(delete_target)
         logging.info('Deleted step %d.', step)
         return
 
       # Rename step dir.
       rename_dir = self._directory / self._todelete_subdir
+      rename_dir = epath.Path(os.path.normpath(rename_dir).replace('gs:/', 'gs://'))
       rename_dir.mkdir(parents=True, exist_ok=True)
 
       dst = step_lib.build_step_path(rename_dir, self._name_format, step)
 
+      if self._enable_hns_rmtree:
+        target_parsed = urlparse(str(delete_target))
+        assert target_parsed.scheme == 'gs', f'Unsupported scheme for HNS: {target_parsed.scheme}'
+        target_bucket_name = target_parsed.netloc
+        target_prefix = target_parsed.path.strip('/')
+        dst_prefix = urlparse(str(dst)).path.strip('/')
+
+        if self._is_hierarchical_namespace_enabled(target_bucket_name):
+          from google.cloud import storage_control_v2  # pytype: disable=import-error
+
+          client = storage_control_v2.StorageControlClient()
+          project_path = client.common_project_path('_')
+          name = f'{project_path}/buckets/{target_bucket_name}/folders/{target_prefix}'
+          request = storage_control_v2.RenameFolderRequest(name=name, destination_folder_id=dst_prefix)
+          logging.info("Renaming folder %s to %s", name, dst_prefix)
+          start_time = time.time()
+          operation = client.rename_folder(request=request)
+          operation.result()
+          logging.info("Renamed folder %s to %s within %d seconds", name, dst_prefix, time.time() - start_time)
+          return 
+
       delete_target.replace(dst)
       logging.info('Renamed step %d to %s', step, dst)
+      return
     finally:
       jax.monitoring.record_event_duration_secs(
           self._duration_metric,
