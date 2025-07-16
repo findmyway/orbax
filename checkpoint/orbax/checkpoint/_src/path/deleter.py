@@ -275,6 +275,15 @@ class ThreadedCheckpointDeleter:
 
   def _delete_thread_run(self) -> None:
     logging.info('Delete thread has started.')
+    if steps_to_remove := step_lib.tmp_checkpoint_steps(self._standard_deleter._directory):
+      logging.info(
+          'Found %d tmp checkpoints to remove: %s',
+          len(steps_to_remove),
+          steps_to_remove,
+      )
+      for step in steps_to_remove:
+        self._standard_deleter.delete(step)
+
     while True:
       step = self._delete_queue.get(block=True)
       if step < 0:

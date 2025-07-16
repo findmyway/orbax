@@ -701,6 +701,11 @@ def tmp_checkpoints(checkpoint_dir: epath.PathLike) -> List[str]:
     return []
   return [s.name for s in checkpoint_dir.iterdir() if is_tmp_checkpoint(s)]
 
+def tmp_checkpoint_steps(checkpoint_dir: epath.PathLike) -> List[int]:
+  tmp_files = tmp_checkpoints(checkpoint_dir)
+  return [
+      step_from_checkpoint_name(tmp_file) for tmp_file in tmp_files
+  ]
 
 def cleanup_tmp_directories(
     directory: epath.PathLike,
