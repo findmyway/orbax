@@ -663,7 +663,9 @@ def is_tmp_checkpoint(path: epath.PathLike) -> bool:
     )
     return False
   if not path.exists():
-    raise ValueError(f'Path {path} does not exist.')
+    # raise ValueError(f'Path {path} does not exist.')
+    logging.warning('Path %s does not exist.', path)
+    return False
   if not path.is_dir():
     return False
   if is_gcs_path(path) and not (path / _COMMIT_SUCCESS_FILE).exists():

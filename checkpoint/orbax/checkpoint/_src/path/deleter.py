@@ -348,6 +348,8 @@ class ThreadedCheckpointDeleter:
       for step in steps_to_remove:
         self._standard_deleter.delete(step)
 
+    logging.info('Finished removing all tmp checkpoints')
+
     while True:
       step = self._delete_queue.get(block=True)
       if step < 0:
