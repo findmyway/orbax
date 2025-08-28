@@ -1713,7 +1713,7 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
       return CheckpointInfo(
           step=step_metadata.step,
           time=step_metadata.commit_timestamp,
-          metrics=self.metrics(step_metadata.step),
+          metrics=None
       )
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
