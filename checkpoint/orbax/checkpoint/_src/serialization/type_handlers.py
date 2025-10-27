@@ -1100,6 +1100,9 @@ class ArrayHandler(types.TypeHandler):
             )
         )
       array_metadatas.append(array_write_spec.metadata)
+      # debug only
+      break
+
     if self._array_metadata_store is not None:
       write_coros.append(
           self._array_metadata_store.write(
