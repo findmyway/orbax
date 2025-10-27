@@ -1062,9 +1062,9 @@ class ArrayHandler(types.TypeHandler):
     """Runs serialization in a background thread."""
     write_coros = []
     sharding_metadata_txn = ts.Transaction()
-    # ocdbt_transaction: Optional[ts.Transaction] = None
-    ocdbt_transaction: Optional[ts.Transaction] = ts.Transaction(atomic=True)
+    ocdbt_transaction: Optional[ts.Transaction] = None
     array_metadatas = []
+    logging.info("%s values to serialize.", len(values))
     for value, info, arg in zip(values, infos, args):
       # The byte_limiter can't be used with a transaction, because awaiting the
       # `write` only waits until the in-memory transaction state reflects the
@@ -1083,6 +1083,10 @@ class ArrayHandler(types.TypeHandler):
       )
       tspec = array_write_spec.json
       ts_context = info.ts_context
+
+      logging.info("tspec = %s", tspec)
+      logging.info("ts_context = %s", ts_context)
+
       write_coros.append(
           serialization.async_serialize_from_host(
               value,
