@@ -1174,10 +1174,10 @@ class ArrayHandler(types.TypeHandler):
     logging.info("Finish D2H transferring")
 
     return [
-        # future.CommitFutureAwaitingContractedSignals(
-        #     self._background_serialize(values_on_host, infos, args),
-        #     name='array_type_handler',
-        # )
+        future.CommitFutureAwaitingContractedSignals(
+            self._background_serialize(values_on_host, infos, args),
+            name='array_type_handler',
+        )
     ]
 
   def _parse_array_metadatas(self, array_metadatas, infos, deserialized_arrays):

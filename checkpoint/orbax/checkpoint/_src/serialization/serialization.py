@@ -319,13 +319,14 @@ async def async_serialize_from_host(
     assert isinstance(fragment.value, np.ndarray)
     requested_bytes = estimate_write_memory_footprint(fragment.value)
     async with reserved_bytes(byte_limiter, requested_bytes):
-      await t[fragment.index].write(
-          fragment.value,
-          # Avoid additional copy of input array into the TensorStore chunk
-          # cache. The data array of a shard is guaranteed to be immutable and
-          # therefore it is safe to retain a reference indefinitely.
-          can_reference_source_data_indefinitely=True,
-      )
+      # The `can_reference_source_data_indefinitely` parameter is intentionally
+      # omitted to prevent potential memory leaks. When set to `True`,
+      # TensorStore may hold references to the source data indefinitely,
+      # leading to memory accumulation across repeated serialization calls. By
+      # omitting it (defaulting to `False`), we ensure TensorStore copies the
+      # data, allowing Python's garbage collector to free the original numpy
+      # array memory after the write operation.
+      await t[fragment.index].write(fragment.value)
 
   write_coros = [
       write_fragment(fragment)
