@@ -1062,7 +1062,8 @@ class ArrayHandler(types.TypeHandler):
     """Runs serialization in a background thread."""
     write_coros = []
     sharding_metadata_txn = ts.Transaction()
-    ocdbt_transaction: Optional[ts.Transaction] = None
+    # ocdbt_transaction: Optional[ts.Transaction] = None
+    ocdbt_transaction: Optional[ts.Transaction] = ts.Transaction(atomic=True)
     array_metadatas = []
     for value, info, arg in zip(values, infos, args):
       # The byte_limiter can't be used with a transaction, because awaiting the
@@ -1101,7 +1102,7 @@ class ArrayHandler(types.TypeHandler):
         )
       array_metadatas.append(array_write_spec.metadata)
       # debug only
-      break
+    #   break
 
     if self._array_metadata_store is not None:
       write_coros.append(
