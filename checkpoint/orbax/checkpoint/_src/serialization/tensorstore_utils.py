@@ -61,7 +61,7 @@ _DEFAULT_OCDBT_TS_CONTEXT = {
     **_BASE_TS_CONTEXT,
     # Provide cache pool for B-tree nodes to avoid repeated reads.
     # 100MB limit.
-    **{'cache_pool#ocdbt': {'total_bytes_limit': 100000000}},
+    # **{'cache_pool#ocdbt': {'total_bytes_limit': 100000000}},
 }
 
 _REMOTE_URL_PREFIXES = ['gs://', 's3://']
@@ -176,10 +176,10 @@ def build_kvstore_tspec(
     if name is not None:
       kv_spec['path'] = name
 
-    kv_spec.update({  # pytype: disable=attribute-error
-        # References the cache specified in ts.Context.
-        'cache_pool': 'cache_pool#ocdbt',
-    })
+    # kv_spec.update({  # pytype: disable=attribute-error
+    #     # References the cache specified in ts.Context.
+    #     'cache_pool': 'cache_pool#ocdbt',
+    # })
 
     if is_remote_storage(kv_spec):
       kv_spec.update({  # pytype: disable=attribute-error
