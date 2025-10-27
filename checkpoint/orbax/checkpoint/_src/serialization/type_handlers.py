@@ -1069,9 +1069,10 @@ class ArrayHandler(types.TypeHandler):
       # `write` only waits until the in-memory transaction state reflects the
       # write, but the memory will remain in use until the transaction is
       # committed.
-      if info.is_ocdbt_checkpoint and info.byte_limiter is None:
-        if ocdbt_transaction is None:
-          ocdbt_transaction = ts.Transaction(atomic=True)
+
+    #   if info.is_ocdbt_checkpoint and info.byte_limiter is None:
+    #     if ocdbt_transaction is None:
+    #       ocdbt_transaction = ts.Transaction(atomic=True)
       array_write_spec = self._get_array_write_spec(
           info,
           value,
@@ -1088,7 +1089,8 @@ class ArrayHandler(types.TypeHandler):
               primary_host=self._primary_host,
               context=ts_context,
               transaction=ocdbt_transaction,
-              byte_limiter=info.byte_limiter,
+            #   byte_limiter=info.byte_limiter,
+              byte_limiter=None,
           )
       )
       if self._enable_write_sharding_file and value.sharding is not None:
