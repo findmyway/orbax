@@ -1161,6 +1161,8 @@ class ArrayHandler(types.TypeHandler):
         [not info.enable_pinned_host_transfer for info in infos]
     )
 
+    logging.info("Start D2H transferring")
+
     # Complete D2H transfer in parallel for each array.
     values_on_host = replica_slices.transfer_arrays_to_host(
         arrays,
@@ -1169,11 +1171,13 @@ class ArrayHandler(types.TypeHandler):
         enable_pinned_host_transfer=infos[0].enable_pinned_host_transfer,
     )
 
+    logging.info("Finish D2H transferring")
+
     return [
-        future.CommitFutureAwaitingContractedSignals(
-            self._background_serialize(values_on_host, infos, args),
-            name='array_type_handler',
-        )
+        # future.CommitFutureAwaitingContractedSignals(
+        #     self._background_serialize(values_on_host, infos, args),
+        #     name='array_type_handler',
+        # )
     ]
 
   def _parse_array_metadatas(self, array_metadatas, infos, deserialized_arrays):
