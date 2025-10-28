@@ -71,7 +71,9 @@ _REMOTE_DRIVER_VALIDATIONS = [
 ]
 
 
+from functools import cache
 
+@cache
 def get_ts_context(
     *,
     use_ocdbt: bool = True,
