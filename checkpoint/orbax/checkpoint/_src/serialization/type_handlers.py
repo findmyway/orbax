@@ -1085,7 +1085,7 @@ class ArrayHandler(types.TypeHandler):
       ts_context = info.ts_context
 
       logging.info("tspec = %s", tspec)
-      logging.info("ts_context = %s", ts_context)
+      logging.info("ts_context = %s", ts_context.spec.to_json())
 
       write_coros.append(
           serialization.async_serialize_from_host(

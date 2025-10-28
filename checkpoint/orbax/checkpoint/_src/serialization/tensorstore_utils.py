@@ -27,6 +27,8 @@ from orbax.checkpoint._src.arrays import types
 from orbax.checkpoint._src.metadata import array_metadata
 import tensorstore as ts
 
+from functools import cache
+
 JsonSpec: TypeAlias = dict[str, Any]
 Shape: TypeAlias = types.Shape
 DType: TypeAlias = types.DType
@@ -72,6 +74,7 @@ _REMOTE_DRIVER_VALIDATIONS = [
 
 
 
+@cache
 def get_ts_context(
     *,
     use_ocdbt: bool = True,
