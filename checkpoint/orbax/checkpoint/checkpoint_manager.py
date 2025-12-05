@@ -1720,7 +1720,8 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
       return CheckpointInfo(
           step=step_metadata.step,
           time=step_metadata.commit_timestamp,
-          metrics=self.metrics(step_metadata.step),
+        #   metrics=self.metrics(step_metadata.step),
+          metrics=None,
       )
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -1733,9 +1734,10 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
           time.time() - start,
       )
       logging.info(
-          'Found %d checkpoint steps in %s',
+          'Found %d checkpoint steps under %s in %s seconds',
           len(checkpoint_infos),
           self.directory,
+          time.time() - start
       )
       return checkpoint_infos
 
