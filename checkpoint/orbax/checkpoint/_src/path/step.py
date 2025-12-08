@@ -403,7 +403,8 @@ class _StandardNameFormat(NameFormat[Metadata]):
     process_index = multihost.process_index()
     time_start = time.time()
     # <step_prefix>_?<0 padding>?*
-    step_paths = self._glob_step_paths(base_path)
+    #step_paths = self._glob_step_paths(base_path)
+    step_paths = [p for p in epath.Path(base_path).iterdir() if p.name.startswith(step_prefix_with_underscore(self.step_prefix))]
     if not step_paths:
       logging.info(
           '[process=%s][single_host_load_and_broadcast] No steps found,'
