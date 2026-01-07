@@ -1312,6 +1312,7 @@ async def _single_replica_deserialize_and_broadcast(
             jax.ShapeDtypeStruct(arg.global_shape, arg.dtype) for arg in args
         ]
         deserialized = create_zeros(tuple(shape_dtype))
+        logging.info("non primary process finished filling zeros...")
 
     deserialized = tuple(deserialized)
     start_broadcast = time.time()

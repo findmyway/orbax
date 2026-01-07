@@ -247,8 +247,10 @@ def _globalize_single_replica_arrays(
     global_shape = (num_replicas,) + local_replica_shape
     logging.vlog(
         1,
-        "Globalizing array with local shape %s to Global shape: %s",
+        "Globalizing array of sharding %s with local shape %s to Global mesh %s of shape: %s",
+        inp.sharding,
         local_replica_shape,
+        global_mesh,
         global_shape,
     )
     global_spec = jax.sharding.PartitionSpec(
@@ -281,7 +283,12 @@ def _globalize_single_replica_arrays(
             n_zeros += 1
 
     logging.vlog(
-        1, "Device buffers: count=%d, n zeros: %d", len(device_buffers), n_zeros
+        1,
+        "Device buffers: count=%d, n zeros: %d, global sharding %s, shapes of each buffer: %s",
+        len(device_buffers),
+        n_zeros,
+        global_sharding,
+        [v.shape for v in device_buffers],
     )
     return jax.make_array_from_single_device_arrays(
         global_shape,
