@@ -1297,6 +1297,12 @@ async def _single_replica_deserialize_and_broadcast(
             "Finished primary replica deserialization in %.2f",
             deserialization_elapsed_s,
         )
+        # Create a stable copy of the deserialized arrays to prevent crashes
+        # from unstable buffers returned by the deserialization library.
+        logging.info("Copying deserialized arrays to ensure buffer stability...")
+        deserialized = jax.tree.map(lambda x: x.copy(), deserialized)
+        jax.block_until_ready(deserialized)
+        logging.info("Copy finished.")
     else:
         logging.info("non primary process start filling zeros...")
 
