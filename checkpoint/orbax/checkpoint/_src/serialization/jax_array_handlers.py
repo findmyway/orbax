@@ -1218,42 +1218,47 @@ def _validate_sharding_and_get_primary_replica_processes(
     primary_replica_id: int,
     sharding: jax.sharding.Sharding,
 ) -> Set[int]:
-  """Validates sharding for restoration."""
-  if not isinstance(sharding, jax.sharding.NamedSharding):
-    raise InvalidShardingError(
-        'The provided sharding is not a NamedSharding. Please use'
-        ' NamedSharding instead.'
+    """Validates sharding for restoration."""
+    if not isinstance(sharding, jax.sharding.NamedSharding):
+        raise InvalidShardingError(
+            "The provided sharding is not a NamedSharding. Please use"
+            " NamedSharding instead."
+        )
+    primary_replica_device_ids, primary_replica_pids = (
+        multislice.get_primary_replica_ids_and_pids(
+            replica_axis_idx=replica_axis_index,
+            mesh=sharding.mesh,
+            primary_replica_id=primary_replica_id,
+        )
     )
-  primary_replica_device_ids, primary_replica_pids = (
-      multislice.get_primary_replica_ids_and_pids(
-          replica_axis_idx=replica_axis_index,
-          mesh=sharding.mesh,
-          primary_replica_id=primary_replica_id,
-      )
-  )
-  if len(primary_replica_device_ids) == len(jax.devices()):
-    raise InvalidShardingError(
-        'All devices are in the primary replica. There are no non-primary'
-        ' replicas to broadcast to.'
+    if len(primary_replica_device_ids) == len(jax.devices()):
+        raise InvalidShardingError(
+            "All devices are in the primary replica. There are no non-primary"
+            " replicas to broadcast to."
+        )
+
+    expected_primary_replica_device_ids = {
+        d.id
+        for d in jax.devices()
+        if multihost.process_index_from_device(d) in primary_replica_pids
+    }
+
+    logging.info("primary_replica_device_ids: %s", primary_replica_device_ids)
+    logging.info("primary_replica_pids: %s", primary_replica_pids)
+    logging.info(
+        "expected_primary_replica_device_ids: %s", expected_primary_replica_device_ids
     )
 
-  expected_primary_replica_device_ids = {
-      d.id
-      for d in jax.devices()
-      if multihost.process_index_from_device(d) in primary_replica_pids
-  }
-  if not primary_replica_device_ids.issubset(
-      expected_primary_replica_device_ids
-  ):
-    raise InvalidShardingError(
-        'The provided sharding is not valid. The primary replica has the'
-        f' following devices: {primary_replica_device_ids}, which is not a'
-        ' subset of the expected devices:'
-        f' {expected_primary_replica_device_ids}. for the primary processes:'
-        f' {primary_replica_pids}.'
-    )
+    if not primary_replica_device_ids.issubset(expected_primary_replica_device_ids):
+        raise InvalidShardingError(
+            "The provided sharding is not valid. The primary replica has the"
+            f" following devices: {primary_replica_device_ids}, which is not a"
+            " subset of the expected devices:"
+            f" {expected_primary_replica_device_ids}. for the primary processes:"
+            f" {primary_replica_pids}."
+        )
 
-  return primary_replica_pids
+    return primary_replica_pids
 
 
 async def _single_replica_deserialize_and_broadcast(
@@ -1267,63 +1272,65 @@ async def _single_replica_deserialize_and_broadcast(
     broadcast_memory_limit_bytes: int | None,
     broadcast_memory_scaling_factor: float | None,
 ) -> Sequence[jax.Array]:
-  """Deserializes and broadcasts a single replica."""
-  primary_replica_pids = _validate_sharding_and_get_primary_replica_processes(
-      replica_axis_index=replica_axis_index,
-      primary_replica_id=primary_replica_id,
-      sharding=shardings[0],
-  )
-  if _is_host_for_primary_replica(primary_replica_pids):
-    start_deserialization = time.time()
-    deserialized = await _deserialize_arrays(
-        infos,
-        args,
-        single_replica_shardings,
-        metadata_key,
-        None,
+    """Deserializes and broadcasts a single replica."""
+    primary_replica_pids = _validate_sharding_and_get_primary_replica_processes(
+        replica_axis_index=replica_axis_index,
+        primary_replica_id=primary_replica_id,
+        sharding=shardings[0],
     )
-    deserialization_elapsed_s = time.time() - start_deserialization
+    if _is_host_for_primary_replica(primary_replica_pids):
+        start_deserialization = time.time()
+        logging.info("primary process start deserializing...")
+        deserialized = await _deserialize_arrays(
+            infos,
+            args,
+            single_replica_shardings,
+            metadata_key,
+            None,
+        )
+        deserialization_elapsed_s = time.time() - start_deserialization
+        jax.monitoring.record_event_duration_secs(
+            "/jax/checkpoint/read/primary_replica_deserialization_duration_secs",
+            deserialization_elapsed_s,
+        )
+        logging.info(
+            "Finished primary replica deserialization in %.2f",
+            deserialization_elapsed_s,
+        )
+    else:
+        logging.info("non primary process start filling zeros...")
+
+        @functools.partial(
+            jax.jit, static_argnums=0, out_shardings=tuple(single_replica_shardings)
+        )
+        def create_zeros(shape_dtype_tup):
+            return jax.tree.map(
+                lambda sd: jnp.zeros(sd.shape, dtype=sd.dtype), shape_dtype_tup
+            )
+
+        shape_dtype = [
+            jax.ShapeDtypeStruct(arg.global_shape, arg.dtype) for arg in args
+        ]
+        deserialized = create_zeros(tuple(shape_dtype))
+
+    deserialized = tuple(deserialized)
+    start_broadcast = time.time()
+    global_mesh = cast(jax.sharding.NamedSharding, shardings[0]).mesh
+    shared_state, _ = multislice.broadcast_one_replica_to_all(
+        deserialized,
+        global_mesh,
+        replica_axis_index,
+        _is_host_for_primary_replica(primary_replica_pids),
+        memory_limit_bytes=broadcast_memory_limit_bytes,
+        memory_scaling_factor=broadcast_memory_scaling_factor,
+    )
+    broadcast_elapsed_s = time.time() - start_broadcast
     jax.monitoring.record_event_duration_secs(
-        '/jax/checkpoint/read/primary_replica_deserialization_duration_secs',
-        deserialization_elapsed_s,
+        "/jax/checkpoint/read/broadcast_duration_secs", broadcast_elapsed_s
     )
-    logging.info(
-        'Finished primary replica deserialization in %.2f',
-        deserialization_elapsed_s,
-    )
-  else:
+    logging.info("Finished broadcasting in %.2f", broadcast_elapsed_s)
 
-    @functools.partial(
-        jax.jit, static_argnums=0, out_shardings=tuple(single_replica_shardings)
-    )
-    def create_zeros(shape_dtype_tup):
-      return jax.tree.map(
-          lambda sd: jnp.zeros(sd.shape, dtype=sd.dtype), shape_dtype_tup
-      )
-
-    shape_dtype = [
-        jax.ShapeDtypeStruct(arg.global_shape, arg.dtype) for arg in args
-    ]
-    deserialized = create_zeros(tuple(shape_dtype))
-
-  deserialized = tuple(deserialized)
-  start_broadcast = time.time()
-  global_mesh = cast(jax.sharding.NamedSharding, shardings[0]).mesh
-  shared_state, _ = multislice.broadcast_one_replica_to_all(
-      deserialized,
-      global_mesh,
-      replica_axis_index,
-      _is_host_for_primary_replica(primary_replica_pids),
-      memory_limit_bytes=broadcast_memory_limit_bytes,
-      memory_scaling_factor=broadcast_memory_scaling_factor,
-  )
-  broadcast_elapsed_s = time.time() - start_broadcast
-  jax.monitoring.record_event_duration_secs(
-      '/jax/checkpoint/read/broadcast_duration_secs', broadcast_elapsed_s
-  )
-  logging.info('Finished broadcasting in %.2f', broadcast_elapsed_s)
-
-  return shared_state
+    return shared_state
 
 
 def _single_replica_deserialize_on_worker(

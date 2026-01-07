@@ -228,69 +228,67 @@ def _globalize_single_replica_arrays(
     global_mesh: jax.sharding.Mesh,
     is_source: bool,
 ) -> jax.Array:
-  """Globalizes a single replica array."""
+    """Globalizes a single replica array."""
 
-  num_replicas = global_mesh.devices.shape[replica_axis_index]
-  replica_axis_name = global_mesh.axis_names[replica_axis_index]
-  sharding = inp.sharding
-  if not isinstance(sharding, jax.sharding.NamedSharding):
-    raise ValueError(
-        'Must provide input arrays with NamedSharding. '
-        f'Got {type(sharding)} instead.'
+    num_replicas = global_mesh.devices.shape[replica_axis_index]
+    replica_axis_name = global_mesh.axis_names[replica_axis_index]
+    sharding = inp.sharding
+    if not isinstance(sharding, jax.sharding.NamedSharding):
+        raise ValueError(
+            "Must provide input arrays with NamedSharding. "
+            f"Got {type(sharding)} instead."
+        )
+    local_replica_shape = inp.shape
+
+    assert replica_axis_name not in sharding.spec, (
+        f"Replica axis name {replica_axis_name} already exists in"
+        f" sharding.spec {sharding.spec}"
     )
-  local_replica_shape = inp.shape
+    global_shape = (num_replicas,) + local_replica_shape
+    logging.vlog(
+        1,
+        "Globalizing array with local shape %s to Global shape: %s",
+        local_replica_shape,
+        global_shape,
+    )
+    global_spec = jax.sharding.PartitionSpec(
+        replica_axis_name,
+        *sharding.spec,
+    )
+    global_sharding = jax.sharding.NamedSharding(global_mesh, global_spec)
 
-  assert replica_axis_name not in sharding.spec, (
-      f'Replica axis name {replica_axis_name} already exists in'
-      f' sharding.spec {sharding.spec}'
-  )
-  global_shape = (num_replicas,) + local_replica_shape
-  logging.vlog(
-      1,
-      'Globalizing array with local shape %s to Global shape: %s',
-      local_replica_shape,
-      global_shape,
-  )
-  global_spec = jax.sharding.PartitionSpec(
-      replica_axis_name,
-      *sharding.spec,
-  )
-  global_sharding = jax.sharding.NamedSharding(global_mesh, global_spec)
+    source_device_map = {}
 
-  source_device_map = {}
+    @jax.jit
+    def _expand_dims(x: jax.Array):
+        return jnp.expand_dims(x, axis=0)
 
-  @jax.jit
-  def _expand_dims(x: jax.Array):
-    return jnp.expand_dims(x, axis=0)
+    inp = _expand_dims(inp)
+    if is_source:
+        for s in inp.addressable_shards:
+            source_device_map[s.device] = s.data
 
-  inp = _expand_dims(inp)
-  if is_source:
-    for s in inp.addressable_shards:
-      source_device_map[s.device] = s.data
+    device_buffers = []
+    n_zeros = 0
+    for d, index in global_sharding.addressable_devices_indices_map(
+        global_shape
+    ).items():
+        if d in source_device_map:
+            device_buffers.append(source_device_map[d])
+        else:
+            zero_data = np.zeros(_get_slice_shape(index, global_shape), dtype=inp.dtype)
+            device_buffers.append(jax.device_put(zero_data, d))
+            n_zeros += 1
 
-  device_buffers = []
-  for d, index in global_sharding.addressable_devices_indices_map(
-      global_shape
-  ).items():
-    if d in source_device_map:
-      device_buffers.append(source_device_map[d])
-    else:
-      zero_data = np.zeros(
-          _get_slice_shape(index, global_shape), dtype=inp.dtype
-      )
-      device_buffers.append(jax.device_put(zero_data, d))
-
-  logging.vlog(
-      1,
-      'Device buffers: %r',
-      {d.device: d for d in device_buffers},
-  )
-  return jax.make_array_from_single_device_arrays(
-      global_shape,
-      global_sharding,
-      device_buffers,
-      dtype=inp.dtype,
-  )
+    logging.vlog(
+        1, "Device buffers: count=%d, n zeros: %d", len(device_buffers), n_zeros
+    )
+    return jax.make_array_from_single_device_arrays(
+        global_shape,
+        global_sharding,
+        device_buffers,
+        dtype=inp.dtype,
+    )
 
 
 def _merge_globalized_replicas(
@@ -317,77 +315,87 @@ def broadcast_one_replica_to_all(
     replica_axis_index: int,
     is_source: bool,
     memory_limit_bytes: Optional[Union[int, None]] = None,
-    memory_scaling_factor: Optional[float] = 0.75,
+    memory_scaling_factor: Optional[float] = 0.5,
 ) -> tuple[tuple[jax.Array, ...], int]:
-  """One replica reads the data and broadcasts to others.
+    """One replica reads the data and broadcasts to others.
 
-  Args:
-    in_tree: pytree to be broadcast. Shardings should correspond to the origin
-      replica.
-    global_mesh: global mesh.
-    replica_axis_index: axis index along which the data is replicated.
-    is_source: indicates if the current host is in origin replica.
-    memory_limit_bytes: memory limit for broadcasting in bytes.
-    memory_scaling_factor: indicates the fraction of the estimated available
-      memory to be used when broadcasting data.
+    Args:
+      in_tree: pytree to be broadcast. Shardings should correspond to the origin
+        replica.
+      global_mesh: global mesh.
+      replica_axis_index: axis index along which the data is replicated.
+      is_source: indicates if the current host is in origin replica.
+      memory_limit_bytes: memory limit for broadcasting in bytes.
+      memory_scaling_factor: indicates the fraction of the estimated available
+        memory to be used when broadcasting data.
 
-  Returns:
-     Tuple containing:
-      - pytree with broadcasted data
-      - number of broadcasts performed.
-  """
-  if memory_limit_bytes is None:
-    memory_limit_bytes = get_available_memory(in_tree, memory_scaling_factor)
-    logging.info('Using available memory of %d bytes.', memory_limit_bytes)
+    Returns:
+       Tuple containing:
+        - pytree with broadcasted data
+        - number of broadcasts performed.
+    """
+    if memory_limit_bytes is None:
+        memory_limit_bytes = get_available_memory(in_tree, memory_scaling_factor)
+        logging.info("Using available memory of %d bytes.", memory_limit_bytes)
 
-  tree_len = len(in_tree)
-  start = 0
-  out_tree = []
-  num_broadcasts = 0
-  while start < tree_len:
-    subtree = []
-    current_memory = 0
-    end = start
-    if tree_memory_per_device(in_tree[start]) > memory_limit_bytes:
-      logging.warning(
-          'in_tree leaf size exceeds memory limit for broadcasting. '
-          'Leaf size: %d bytes. Allowed memory limit: %d bytes. Proceeding.',
-          tree_memory_per_device(in_tree[start]),
-          memory_limit_bytes,
-      )
-      subtree.append(in_tree[end])
-      end += 1
-    else:
-      while end < tree_len and (
-          current_memory + tree_memory_per_device(in_tree[end])
-          <= memory_limit_bytes
-      ):
-        subtree.append(in_tree[end])
-        current_memory += tree_memory_per_device(in_tree[end])
-        end += 1
-    subtree = tuple(subtree)
-    num_broadcasts += 1
-    globalized_sharded_subtree = jax.tree.map(
-        functools.partial(
-            _globalize_single_replica_arrays,
-            global_mesh=global_mesh,
-            replica_axis_index=replica_axis_index,
-            is_source=is_source,
-        ),
-        subtree,
-    )
-    # Delete immediately to conserve memory.
-    jax.tree.map(lambda x: x.delete(), subtree)
-    out_subtree = _merge_globalized_replicas(
-        globalized_sharded_subtree, global_mesh
-    )
-    out_tree.extend(out_subtree)
-    jax.block_until_ready(out_subtree)
-    start = end
+    tree_len = len(in_tree)
+    start = 0
+    out_tree = []
+    num_broadcasts = 0
+    while start < tree_len:
+        subtree = []
+        current_memory = 0
+        end = start
+        if tree_memory_per_device(in_tree[start]) > memory_limit_bytes:
+            logging.warning(
+                "in_tree leaf size exceeds memory limit for broadcasting. "
+                "Leaf size: %d bytes. Allowed memory limit: %d bytes. Proceeding.",
+                tree_memory_per_device(in_tree[start]),
+                memory_limit_bytes,
+            )
+            subtree.append(in_tree[end])
+            end += 1
+        else:
+            while end < tree_len and (
+                current_memory + tree_memory_per_device(in_tree[end])
+                <= memory_limit_bytes
+            ):
+                subtree.append(in_tree[end])
+                current_memory += tree_memory_per_device(in_tree[end])
+                end += 1
+        subtree = tuple(subtree)
+        num_broadcasts += 1
+        subtree_mem = tree_memory_per_device(subtree)
+        logging.info(
+            'Broadcast #%d: Processing subtree with %d elements, totaling %d bytes.',
+            num_broadcasts,
+            len(subtree),
+            subtree_mem,
+        )
+        globalized_sharded_subtree = jax.tree.map(
+            functools.partial(
+                _globalize_single_replica_arrays,
+                global_mesh=global_mesh,
+                replica_axis_index=replica_axis_index,
+                is_source=is_source,
+            ),
+            subtree,
+        )
+        jax.block_until_ready(globalized_sharded_subtree)
+        logging.info("globalized_sharded_subtree finished!")
 
-  if is_source:
-    logging.info('Total number of broadcasts: %d', num_broadcasts)
-  return tuple(out_tree), num_broadcasts
+        # Delete immediately to conserve memory.
+        jax.tree.map(lambda x: x.delete(), subtree)
+        out_subtree = _merge_globalized_replicas(
+            globalized_sharded_subtree, global_mesh
+        )
+        out_tree.extend(out_subtree)
+        jax.block_until_ready(out_subtree)
+        start = end
+
+    if is_source:
+        logging.info("Total number of broadcasts: %d", num_broadcasts)
+    return tuple(out_tree), num_broadcasts
 
 
 def get_primary_replica_ids_and_pids(
