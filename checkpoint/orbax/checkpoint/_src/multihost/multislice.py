@@ -261,14 +261,14 @@ def _globalize_single_replica_arrays(
 
     source_device_map = {}
 
-    @jax.jit
-    def _expand_dims(x: jax.Array):
-        return jnp.expand_dims(x, axis=0)
+    # @jax.jit
+    # def _expand_dims(x: jax.Array):
+    #     return jnp.expand_dims(x, axis=0)
 
-    inp = _expand_dims(inp)
+    # inp = _expand_dims(inp)
     if is_source:
         for s in inp.addressable_shards:
-            source_device_map[s.device] = s.data
+            source_device_map[s.device] = jnp.expand_dims(s.data, axis=0)
 
     device_buffers = []
     n_zeros = 0
