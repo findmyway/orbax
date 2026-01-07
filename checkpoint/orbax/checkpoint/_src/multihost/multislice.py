@@ -276,9 +276,7 @@ def _globalize_single_replica_arrays(
         global_shape
     ).items():
         if d in source_device_map:
-            # Create a fresh copy of the shard's data to ensure the buffer is
-            # valid and not a reference to a deleted buffer.
-            device_buffers.append(source_device_map[d].copy())
+            device_buffers.append(source_device_map[d])
         else:
             zero_data = np.zeros(
                 _get_slice_shape(index, global_shape), dtype=inp.dtype
