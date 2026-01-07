@@ -1279,8 +1279,26 @@ async def _single_replica_deserialize_and_broadcast(
         sharding=shardings[0],
     )
     if _is_host_for_primary_replica(primary_replica_pids):
+
+        def log_memory_stats(stage: str):
+            logging.info('Memory stats (%s):', stage)
+            for device in jax.local_devices():
+                stats = device.memory_stats()
+                bytes_used = stats.get('bytes_in_use', 0)
+                logging.info(
+                    '  Device %s: %s in use',
+                    device.id,
+                    humanize.naturalsize(bytes_used, binary=True),
+                )
+
         start_deserialization = time.time()
-        logging.info("primary process start deserializing...")
+        logging.info('primary process start deserializing...')
+        logging.info(
+            'Attempting to deserialize with shardings: %s',
+            single_replica_shardings,
+        )
+        log_memory_stats('Before deserialization')
+
         deserialized = await _deserialize_arrays(
             infos,
             args,
@@ -1288,23 +1306,21 @@ async def _single_replica_deserialize_and_broadcast(
             metadata_key,
             None,
         )
+
+        jax.block_until_ready(deserialized)
+        log_memory_stats('After deserialization')
+
         deserialization_elapsed_s = time.time() - start_deserialization
         jax.monitoring.record_event_duration_secs(
-            "/jax/checkpoint/read/primary_replica_deserialization_duration_secs",
+            '/jax/checkpoint/read/primary_replica_deserialization_duration_secs',
             deserialization_elapsed_s,
         )
         logging.info(
-            "Finished primary replica deserialization in %.2f",
+            'Finished primary replica deserialization in %.2f',
             deserialization_elapsed_s,
         )
-        # Create a stable copy of the deserialized arrays to prevent crashes
-        # from unstable buffers returned by the deserialization library.
-        logging.info("Copying deserialized arrays to ensure buffer stability...")
-        deserialized = jax.tree.map(lambda x: x.copy(), deserialized)
-        jax.block_until_ready(deserialized)
-        logging.info("Copy finished.")
     else:
-        logging.info("non primary process start filling zeros...")
+        logging.info('non primary process start filling zeros...')
 
         @functools.partial(
             jax.jit, static_argnums=0, out_shardings=tuple(single_replica_shardings)
@@ -1318,7 +1334,7 @@ async def _single_replica_deserialize_and_broadcast(
             jax.ShapeDtypeStruct(arg.global_shape, arg.dtype) for arg in args
         ]
         deserialized = create_zeros(tuple(shape_dtype))
-        logging.info("non primary process finished filling zeros...")
+        logging.info('non primary process finished filling zeros...')
 
     deserialized = tuple(deserialized)
     start_broadcast = time.time()
@@ -1333,9 +1349,9 @@ async def _single_replica_deserialize_and_broadcast(
     )
     broadcast_elapsed_s = time.time() - start_broadcast
     jax.monitoring.record_event_duration_secs(
-        "/jax/checkpoint/read/broadcast_duration_secs", broadcast_elapsed_s
+        '/jax/checkpoint/read/broadcast_duration_secs', broadcast_elapsed_s
     )
-    logging.info("Finished broadcasting in %.2f", broadcast_elapsed_s)
+    logging.info('Finished broadcasting in %.2f', broadcast_elapsed_s)
 
     return shared_state
 
