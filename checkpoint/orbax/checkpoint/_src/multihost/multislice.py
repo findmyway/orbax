@@ -276,15 +276,19 @@ def _globalize_single_replica_arrays(
         global_shape
     ).items():
         if d in source_device_map:
-            device_buffers.append(source_device_map[d])
+            # Create a fresh copy of the shard's data to ensure the buffer is
+            # valid and not a reference to a deleted buffer.
+            device_buffers.append(source_device_map[d].copy())
         else:
-            zero_data = np.zeros(_get_slice_shape(index, global_shape), dtype=inp.dtype)
+            zero_data = np.zeros(
+                _get_slice_shape(index, global_shape), dtype=inp.dtype
+            )
             device_buffers.append(jax.device_put(zero_data, d))
             n_zeros += 1
 
     logging.vlog(
         1,
-        "Device buffers: count=%d, n zeros: %d, global sharding %s, shapes of each buffer: %s",
+        'Device buffers: count=%d, n zeros: %d, global sharding %s, shapes of each buffer: %s',
         len(device_buffers),
         n_zeros,
         global_sharding,
